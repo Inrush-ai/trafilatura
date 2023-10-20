@@ -168,7 +168,7 @@ def crawl_page(visited_num, base_url, lang=None, rules=None, initial=False):
                 process_links(htmlstring, url=url, language=lang, rules=rules)
         else:
             response = fetch_url(url, decode=False)
-            process_response(response, base_url, lang, rules=rules)
+            process_response(response, url, lang, rules=rules)
     # optional backup of gathered pages without nav-pages ? ...
     is_on = bool(URL_STORE.find_unvisited_urls(base_url))
     known_num = len(URL_STORE.find_known_urls(base_url))
