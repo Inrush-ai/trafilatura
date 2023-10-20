@@ -141,7 +141,8 @@ def sitemap_search(url: str, target_lang: Optional[str] = None) -> List[str]:
         The extracted links as a list (sorted list of unique links).
 
     """
-    domainname, baseurl = get_hostinfo(url)
+    _, baseurl = get_hostinfo(url)
+    domainname = extract_domain(url)
     if domainname is None:
         LOGGER.warning('invalid URL: %s', url)
         return []
