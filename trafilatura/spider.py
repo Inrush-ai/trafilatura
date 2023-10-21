@@ -7,11 +7,11 @@ import logging
 import urllib.robotparser
 from time import sleep
 
-from courlan import (UrlStore, extract_links, fix_relative_urls, get_hostinfo,
-                     is_navigation_page, is_not_crawlable)
+from courlan import UrlStore, extract_links, fix_relative_urls, get_hostinfo, is_navigation_page, is_not_crawlable
 
 from .core import baseline
 from .downloads import fetch_url
+
 # from .feeds import find_feed_urls # extract_links ad extract_feed_links
 from .settings import DEFAULT_CONFIG
 from .utils import decode_response, load_html
@@ -19,6 +19,7 @@ from .utils import decode_response, load_html
 # language detection
 try:
     import py3langid
+
     LANGID_FLAG = True
 except ImportError:
     LANGID_FLAG = False
@@ -39,36 +40,36 @@ def refresh_detection(htmlstring, homepage):
 
     # test meta-refresh redirection
     # https://stackoverflow.com/questions/2318446/how-to-follow-meta-refreshes-in-python
-    results =  html_tree.xpath('//meta[@http-equiv="refresh"]/@content|//meta[@http-equiv="REFRESH"]/@content')
-    if results and ';' in results[0]:
-        text = results[0].split(';')[1].strip().lower()
-        if text.startswith('url=') or text.startswith('URL='):
+    results = html_tree.xpath('//meta[@http-equiv="refresh"]/@content|//meta[@http-equiv="REFRESH"]/@content')
+    if results and ";" in results[0]:
+        text = results[0].split(";")[1].strip().lower()
+        if text.startswith("url=") or text.startswith("URL="):
             url2 = text[4:]
-            if not url2.startswith('http'):
+            if not url2.startswith("http"):
                 # Relative URL, adapt
                 _, base_url = get_hostinfo(url2)
                 url2 = fix_relative_urls(base_url, url2)
             # second fetch
             newhtmlstring = fetch_url(url2)
             if newhtmlstring is None:
-                logging.warning('failed redirect: %s', url2)
+                logging.warning("failed redirect: %s", url2)
                 return None, None
-            #else:
+            # else:
             htmlstring, homepage = newhtmlstring, url2
-            logging.info('successful redirect: %s', url2)
+            logging.info("successful redirect: %s", url2)
         else:
-            logging.info('no redirect found: %s', homepage)
+            logging.info("no redirect found: %s", homepage)
     return htmlstring, homepage
 
 
 def probe_alternative_homepage(homepage):
     "Check if the homepage is redirected and return appropriate values."
     response = fetch_url(homepage, decode=False)
-    if response is None or response == '':
+    if response is None or response == "":
         return None, None, None
     # get redirected URL here?
     if response.url not in (homepage, "/"):
-        logging.info('followed redirect: %s', response.url)
+        logging.info("followed redirect: %s", response.url)
         homepage = response.url
     # decode response
     htmlstring = decode_response(response.data)
@@ -76,15 +77,15 @@ def probe_alternative_homepage(homepage):
     htmlstring, homepage = refresh_detection(htmlstring, homepage)
     if homepage is None:  # malformed or malicious content
         return None, None, None
-    logging.info('fetching homepage OK: %s', homepage)
+    logging.info("fetching homepage OK: %s", homepage)
     _, base_url = get_hostinfo(homepage)
     return htmlstring, homepage, base_url
 
 
 def process_links(htmlstring, url="", language=None, rules=None):
     """Examine the HTML code and process the retrieved internal links.
-       Extract and filter new internal links after an optional language check.
-       Store the links in todo-list while prioritizing the navigation ones."""
+    Extract and filter new internal links after an optional language check.
+    Store the links in todo-list while prioritizing the navigation ones."""
     links, links_priority = [], []
     # optional language check: run baseline extraction + language identifier
     if language is not None and LANGID_FLAG is True and htmlstring is not None:
@@ -113,7 +114,7 @@ def process_response(response, base_url, language, rules=None):
     # add final document URL to known_links
     if response is not None:
         URL_STORE.add_urls([response.url], visited=True)
-        if response.data is not None and response.data != '':
+        if response.data is not None and response.data != "":
             # convert urllib3 response to string
             htmlstring = decode_response(response.data)
             # proceed to link extraction
@@ -125,7 +126,7 @@ def init_crawl(homepage, todo, known_links, language=None, rules=None):
     # config=DEFAULT_CONFIG
     _, base_url = get_hostinfo(homepage)
     if base_url is None or len(base_url) < 1:
-        raise ValueError(f'cannot crawl homepage: {homepage}')
+        raise ValueError(f"cannot crawl homepage: {homepage}")
     # TODO: just known or also visited?
     if known_links is not None:
         URL_STORE.add_urls(urls=known_links, visited=True)
@@ -133,12 +134,12 @@ def init_crawl(homepage, todo, known_links, language=None, rules=None):
     # fetch and parse robots.txt file if necessary
     if rules is None:
         rules = urllib.robotparser.RobotFileParser()
-        rules.set_url(base_url + '/robots.txt')
+        rules.set_url(base_url + "/robots.txt")
         # exceptions happening here
         try:
             rules.read()
         except Exception as exc:
-            LOGGER.error('cannot read robots.txt: %s', exc)
+            LOGGER.error("cannot read robots.txt: %s", exc)
             rules = None
     URL_STORE.store_rules(base_url, rules)
     # initialize crawl by visiting homepage if necessary
@@ -164,18 +165,28 @@ def crawl_page(visited_num, base_url, lang=None, rules=None, initial=False):
                 # add potentially "new" homepage
                 if homepage != url:
                     URL_STORE.add_urls([homepage])
+                    url = homepage
                 # extract links on homepage
                 process_links(htmlstring, url=url, language=lang, rules=rules)
         else:
             response = fetch_url(url, decode=False)
-            process_response(response, base_url, lang, rules=rules)
+            process_response(response, url, lang, rules=rules)
     # optional backup of gathered pages without nav-pages ? ...
     is_on = bool(URL_STORE.find_unvisited_urls(base_url))
     known_num = len(URL_STORE.find_known_urls(base_url))
     return is_on, known_num, visited_num
 
 
-def focused_crawler(homepage, max_seen_urls=10, max_known_urls=100000, todo=None, known_links=None, lang=None, config=DEFAULT_CONFIG, rules=None):
+def focused_crawler(
+    homepage,
+    max_seen_urls=10,
+    max_known_urls=100000,
+    todo=None,
+    known_links=None,
+    lang=None,
+    config=DEFAULT_CONFIG,
+    rules=None,
+):
     """Basic crawler targeting pages of interest within a website.
 
     Args:
@@ -197,7 +208,7 @@ def focused_crawler(homepage, max_seen_urls=10, max_known_urls=100000, todo=None
     # visit pages until a limit is reached
     while is_on and i < max_seen_urls and known_num <= max_known_urls:
         is_on, known_num, i = crawl_page(i, base_url, lang=lang, rules=rules)
-        sleep(URL_STORE.get_crawl_delay(base_url, default=config.getfloat('DEFAULT', 'SLEEP_TIME')))
+        sleep(URL_STORE.get_crawl_delay(base_url, default=config.getfloat("DEFAULT", "SLEEP_TIME")))
     todo = set(URL_STORE.find_unvisited_urls(base_url))
     # refocus todo-list on URLs without navigation?
     # [u for u in todo if not is_navigation_page(u)]
